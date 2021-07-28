@@ -1,6 +1,6 @@
 
 from collections import OrderedDict, Iterable
-from itertools import takewhile, count
+from itertools import takewhile, count, filterfalse
 try:
 	from itertools import izip, ifilter
 except ImportError: # Python3
@@ -9,10 +9,16 @@ except ImportError: # Python3
 from datetime import datetime, timedelta
 import numpy as np
 from scipy.optimize import leastsq, fsolve
+from scipy.linalg import norm
 from .astro import astro
 from . import constituent
 
-
+def unique(iterable):
+	seen = set()
+	seen_add = seen.add
+	for element in filterfalse(seen.__contains__, iterable):
+		seen_add(element)
+		yield element
 
 class Tide(object):
 	dtype = np.dtype([
@@ -107,9 +113,10 @@ class Tide(object):
 			 ]
 
 		if radians:
-			speed = np.radians(speed)
-			V0 = np.radians(V0)
-			u = [np.radians(each) for each in u]
+			speed = np.radians(speed, out=speed)
+			V0 = np.radians(V0, out=V0)
+			for each in u:
+				np.radians(each, out=each)
 		return speed, u, f, V0
 
 	def at(self, t):
@@ -363,23 +370,21 @@ class Tide(object):
 			                 "so that each height can be identified with an "
 			                 "instant in time.")
 
-		# Remove duplicate constituents (those which travel at exactly the same
-		# speed, irrespective of phase)
-		constituents = list(OrderedDict.fromkeys(constituents))
 
 		# No need for least squares to find the mean water level constituent z0,
 		# work relative to mean
-		constituents = [c for c in constituents if not c == constituent._Z0]
 		z0 = np.mean(heights)
 		heights = heights - z0
 
+		# Remove duplicate constituents (those which travel at exactly the same
+		# speed, irrespective of phase)
 		# Only analyse frequencies which complete at least n_period cycles over
 		# the data period.
-		constituents = [
-			c for c in constituents
-			if 360.0 * n_period < hours[-1] * c.speed(astro(t0))
-		]
-		n = len(constituents)
+		_constituents = []
+		for c in unique(constituents):
+			if (c != constituent._Z0) and (360 * n_period < hours[-1] * c.speed(astro(t0))):
+				_constituents.append(c)
+		n = len(_constituents)
 
 		sort = np.argsort(hours)
 		hours = hours[sort]
@@ -397,10 +402,10 @@ class Tide(object):
 		t     = Tide._partition(hours, partition)
 		times = Tide._times(t0, [(i + 0.5)*partition for i in range(len(t))])
 
-		speed, u, f, V0 = Tide._prepare(constituents, t0, times, radians = True)
+		speed, u, f, V0 = Tide._prepare(_constituents, t0, times, radians = True)
 
 		# Residual to be minimised by variation of parameters (amplitudes, phases)
-		def residual(hp):
+		def residual(hp, speed, V0, t, u, f):
 			H, p = hp[:n, np.newaxis], hp[n:, np.newaxis]
 			s = np.concatenate([
 				Tide._tidal_series(t_i, H, p, speed, u_i, f_i, V0)
@@ -414,7 +419,7 @@ class Tide(object):
 		# Analytic Jacobian of the residual - this makes solving significantly
 		# faster than just using gradient approximation, especially with many
 		# measurements / constituents.
-		def D_residual(hp):
+		def D_residual(hp, speed, V0, t, u, f):
 			H, p = hp[:n, np.newaxis], hp[n:, np.newaxis]
 			ds_dH = np.concatenate([
 				f_i*np.cos(speed*t_i+u_i+V0-p)
@@ -432,28 +437,29 @@ class Tide(object):
 		# solver seems to converge well regardless of the initial guess We do
 		# however scale the initial amplitude guess with some measure of the
 		# variation
-		amplitudes = np.ones(n) * (np.sqrt(np.dot(heights, heights)) / len(heights))
+		amplitudes = np.full(n, (norm(heights, check_finite=False) / len(heights)))
 		phases     = np.ones(n)
 
 		if initial:
 			for (c0, amplitude, phase) in initial.model:
-				for i, c in enumerate(constituents):
+				for i, c in enumerate(_constituents):
 					if c0 == c:
 						amplitudes[i] = amplitude
-						phases[i] = np.radians((phase))
+						phases[i] = np.radians(phase)
 
 		initial = np.append(amplitudes, phases)
 
 		lsq = leastsq(residual,
 						initial,
 						Dfun=D_residual,
+						args=(speed, V0, t, u, f),
 						col_deriv=True,
 						ftol=1e-7
 						)
 
 		model = np.zeros(1+n, dtype=cls.dtype)
 		model[0] = (constituent._Z0, z0, 0)
-		model[1:]['constituent'] = constituents[:]
+		model[1:]['constituent'] = _constituents[:]
 		model[1:]['amplitude'] = lsq[0][:n]
 		model[1:]['phase'] = lsq[0][n:]
 
