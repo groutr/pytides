@@ -13,9 +13,12 @@ class BaseConstituent(object):
 		'Z': 0
 	}
 
-	int_xdo = {v:k for k, v in list(xdo_int.items())}
+	int_xdo = {v:k for k, v in xdo_int.items()}
 
-	def __init__(self, name, xdo='', coefficients=[], u=nc.u_zero, f=nc.f_unity):
+	def __init__(self, name, xdo='', coefficients=None, u=nc.u_zero, f=nc.f_unity):
+		if coefficients is None:
+			coefficients = []
+		
 		if xdo == '':
 			self.coefficients = np.array(coefficients)
 		else:
@@ -29,7 +32,7 @@ class BaseConstituent(object):
 		return xd
 
 	def coefficients_to_xdo(self, coefficients):
-		return ''.join([self.int_xdo[c] for c in cooefficients])
+		return ''.join(self.int_xdo[c] for c in coefficients)
 
 	def V(self, astro):
 		return np.dot(self.coefficients, self.astro_values(astro))
@@ -57,10 +60,19 @@ class BaseConstituent(object):
 	def __hash__(self):
 		return hash(tuple(self.coefficients[:-1]))
 
+	def __str__(self):
+		return self.name
+
+	def __repr__(self):
+		return f"BaseConstituent({self.name}, {self.u}, {self.f})"
+
 class CompoundConstituent(BaseConstituent):
 
-	def __init__(self, members = [], **kwargs):
-		self.members = members
+	def __init__(self, members=None, **kwargs):
+		if members is None:
+			self.members = []
+		else:
+			self.members = members
 
 		if 'u' not in kwargs:
 			kwargs['u'] = self.u
@@ -69,21 +81,25 @@ class CompoundConstituent(BaseConstituent):
 
 		super(CompoundConstituent,self).__init__(**kwargs)
 
-		mcoefs = [c.coefficients * n for (c,n) in members]
+		mcoefs = (c.coefficients * n for (c,n) in members)
 
 		self.coefficients = reduce(op.add, mcoefs)
 
 	def speed(self, a):
-		return reduce(op.add, [n * c.speed(a) for (c,n) in self.members])
+		return reduce(op.add, (n * c.speed(a) for (c,n) in self.members))
 
 	def V(self, a):
-		return reduce(op.add, [n * c.V(a) for (c,n) in self.members])
+		return reduce(op.add, (n * c.V(a) for (c,n) in self.members))
 
 	def u(self, a):
-		return reduce(op.add, [n * c.u(a) for (c,n) in self.members])
+		return reduce(op.add, (n * c.u(a) for (c,n) in self.members))
 
 	def f(self, a):
-		return reduce(op.mul, [c.f(a) ** abs(n) for (c,n) in self.members])
+		return reduce(op.mul, (c.f(a) ** abs(n) for (c,n) in self.members))
+
+	def __repr__(self):
+		return f"CompoundConstituent({self.name}, {self.members})"
+
 
 # # # # # #  Base Constituents
 # Long Term
