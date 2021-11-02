@@ -7,6 +7,7 @@ except ImportError: # Python3
 	izip = zip
 	ifilter = filter
 from datetime import datetime, timedelta
+import math
 import numpy as np
 from scipy.optimize import leastsq, fsolve
 from scipy.linalg import norm
@@ -98,25 +99,37 @@ class Tide(object):
 		a = [astro(t_i) for t_i in t]
 
 		# For convenience give u, V0 (but not speed!) in [0, 360)
-		V0 = np.array([c.V(a0) for c in constituents])[:, np.newaxis]
-		speed = np.array([c.speed(a0) for c in constituents])[:, np.newaxis]
-		u = [np.mod(
-				np.array([c.u(a_i) for c in constituents])[:, np.newaxis],
-				360.0
-				)
-			 for a_i in a
-			 ]
-		f = [np.mod(
-				np.array([c.f(a_i) for c in constituents])[:, np.newaxis],
-				360.0)
-			 for a_i in a
-			 ]
+		V0 = np.fromiter((c.V(a0) for c in constituents), dtype=float)
+		V0 = V0[np.newaxis, :, np.newaxis]
+		speed = np.fromiter((c.speed(a0) for c in constituents), dtype=float)
+		speed = speed[np.newaxis, :, np.newaxis]
+
+		u = np.empty((len(a), len(constituents)), dtype=float)
+		f = np.empty_like(u)
+		for i, a_i in enumerate(a):
+			u[i] = [c.u(a_i) for c in constituents]
+			f[i] = [c.f(a_i) for c in constituents]
+		u = np.mod(u, 360, out=u)
+		f = np.mod(f, 360, out=f)
+
+		#u = [np.mod(
+		#		np.array([c.u(a_i) for c in constituents])[:, np.newaxis],
+		#		360.0
+		#		)
+		#	 for a_i in a
+		#	 ]
+		#f = [np.mod(
+		#		np.array([c.f(a_i) for c in constituents])[:, np.newaxis],
+		#		360.0)
+		#	 for a_i in a
+		#	 ]
 
 		if radians:
 			speed = np.radians(speed, out=speed)
 			V0 = np.radians(V0, out=V0)
-			for each in u:
-				np.radians(each, out=each)
+			u = np.radians(u, out=u)
+			#for each in u:
+			#	np.radians(each, out=each)
 		return speed, u, f, V0
 
 	def at(self, t):
@@ -278,16 +291,17 @@ class Tide(object):
 		hours -- sorted ndarray of hours.
 		partition -- maximum partition length (default: 3600.0)
 		"""
-		partition = float(partition)
+		eps = np.finfo(float).eps
 		relative = hours - hours[0]
-		total_partitions = np.ceil(
-						relative[-1] / partition +
-						10*np.finfo(np.float).eps
-						).astype('int')
-		return [hours
-				[np.floor(np.divide(relative, partition)) == i]
-				for i in range(total_partitions)
-				]
+		total_partitions = math.ceil(
+						relative[-1] / partition + 10 * eps
+		)
+		tmp = np.floor(relative/partition)
+		rv = np.full((total_partitions, np.count_nonzero(tmp==0)), np.nan)
+		for i in range(total_partitions):
+			m = tmp == i
+			rv[i, :np.count_nonzero(m)] = hours[m]
+		return rv
 
 	@staticmethod
 	def _times(t0, hours):
@@ -307,7 +321,8 @@ class Tide(object):
 
 	@staticmethod
 	def _tidal_series(t, amplitude, phase, speed, u, f, V0):
-		return np.sum(amplitude*f*np.cos(speed*t + (V0 + u) - phase), axis=0)
+		breakpoint()
+		return np.sum(amplitude*f*np.cos(speed*t + (V0 + u) - phase), axis=1)
 
 	def normalize(self):
 		"""
@@ -403,15 +418,20 @@ class Tide(object):
 		times = Tide._times(t0, [(i + 0.5)*partition for i in range(len(t))])
 
 		speed, u, f, V0 = Tide._prepare(_constituents, t0, times, radians = True)
-
+		u = u[:, :, np.newaxis]
+		f = f[:, :, np.newaxis]
 		# Residual to be minimised by variation of parameters (amplitudes, phases)
 		def residual(hp, speed, V0, t, u, f):
-			H, p = hp[:n, np.newaxis], hp[n:, np.newaxis]
-			s = np.concatenate([
-				Tide._tidal_series(t_i, H, p, speed, u_i, f_i, V0)
-				for t_i, u_i, f_i in zip(t, u, f)
-			])
-			res = heights - s
+			breakpoint()
+			H = hp[np.newaxis, :n, np.newaxis]
+			p = hp[np.newaxis, n:, np.newaxis]
+
+			s = Tide._tidal_series(t, H, p, speed, u, f, V0)
+			#s = np.concatenate([
+			#	Tide._tidal_series(t_i, H, p, speed, u_i, f_i, V0)
+			#	for t_i, u_i, f_i in zip(t, u, f)
+			#])
+			res = heights - s.ravel()[:len(heights)]
 			if callback:
 				callback(res)
 			return res
@@ -420,16 +440,23 @@ class Tide(object):
 		# faster than just using gradient approximation, especially with many
 		# measurements / constituents.
 		def D_residual(hp, speed, V0, t, u, f):
-			H, p = hp[:n, np.newaxis], hp[n:, np.newaxis]
-			ds_dH = np.concatenate([
-				f_i*np.cos(speed*t_i+u_i+V0-p)
-				for t_i, u_i, f_i in zip(t, u, f)],
-				axis = 1)
+			breakpoint()
+			H = hp[np.newaxis, :n, np.newaxis]
+			p = hp[np.newaxis, n:, np.newaxis]
 
-			ds_dp = np.concatenate([
-				H*f_i*np.sin(speed*t_i+u_i+V0-p)
-				for t_i, u_i, f_i in zip(t, u, f)],
-				axis = 1)
+			inner = speed * t + (V0 + u) - p
+			ds_dH = f * np.cos(inner)
+			#ds_dH = np.concatenate([
+			#	f_i*np.cos(inner)
+			#	for t_i, u_i, f_i in zip(t, u, f)],
+			#	axis = 1)
+
+			ds_dp = H * f * np.sin(inner)
+			ds_dp
+			#ds_dp = np.concatenate([
+			#	H*f_i*np.sin(speed*t_i+u_i+V0-p)
+			#	for t_i, u_i, f_i in zip(t, u, f)],
+			#	axis = 1)
 
 			return np.append(-ds_dH, -ds_dp, axis=0)
 
@@ -437,20 +464,27 @@ class Tide(object):
 		# solver seems to converge well regardless of the initial guess We do
 		# however scale the initial amplitude guess with some measure of the
 		# variation
-		amplitudes = np.full(n, (norm(heights, check_finite=False) / len(heights)))
-		phases     = np.ones(n)
+		initial_pt = np.empty((2, n))
+		initial_pt[0] = norm(heights, check_finite=False) / len(heights)
+		initial_pt[1] = 1
+		t = t[:, np.newaxis, :]
+
+		#amplitudes = np.full(n, (norm(heights, check_finite=False) / len(heights)))
+		#phases     = np.ones(n)
 
 		if initial:
 			for (c0, amplitude, phase) in initial.model:
 				for i, c in enumerate(_constituents):
 					if c0 == c:
-						amplitudes[i] = amplitude
-						phases[i] = np.radians(phase)
+						initial_pt[0, i] = amplitude
+						initial_pt[1, i] = np.radians(phase)
+						#amplitudes[i] = amplitude
+						#phases[i] = np.radians(phase)
 
-		initial = np.append(amplitudes, phases)
+		#initial = np.append(amplitudes, phases)
 
 		lsq = leastsq(residual,
-						initial,
+						initial_pt,
 						Dfun=D_residual,
 						args=(speed, V0, t, u, f),
 						col_deriv=True,
