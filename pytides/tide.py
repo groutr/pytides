@@ -9,6 +9,12 @@ except ImportError: # Python3
 from datetime import datetime, timedelta
 import math
 import numpy as np
+
+try:
+	import numexpr as ne
+except ImportError:
+	ne = None
+
 from scipy.optimize import leastsq, fsolve
 from scipy.linalg import norm
 from .astro import astro
@@ -321,8 +327,12 @@ class Tide(object):
 
 	@staticmethod
 	def _tidal_series(t, amplitude, phase, speed, u, f, V0):
-		breakpoint()
 		return np.sum(amplitude*f*np.cos(speed*t + (V0 + u) - phase), axis=1)
+
+	@staticmethod
+	def _tidal_series_ne(t, amplitude, phase, speed, u, f, V0):
+		expr = "sum(amplitude * f * cos(speed * t + (V0 + u) - phase), axis=1)"
+		return ne.evaluate(expr)
 
 	def normalize(self):
 		"""
@@ -420,13 +430,38 @@ class Tide(object):
 		speed, u, f, V0 = Tide._prepare(_constituents, t0, times, radians = True)
 		u = u[:, :, np.newaxis]
 		f = f[:, :, np.newaxis]
+
+		R1 = ne.NumExpr("sum(H * f * cos(speed * t + (V0 + u) - p), axis=1)",
+						signature=[('t', np.float64),
+									('H', np.float64), 
+									('p', np.float64),
+									('speed', np.float64),
+									('u', np.float64),
+									('f', np.float64),
+									('V0', np.float64)])
+		DR1 = ne.NumExpr("f * cos(speed * t + (V0 + u) - p)",
+						signature=[('f', np.float64),
+									('speed', np.float64),
+									('t', np.float64),
+									('V0', np.float64),
+									('u', np.float64),
+									('p', np.float64)])
+		DR2 = ne.NumExpr("H * f * sin(speed * t + (V0 + u) - p)",
+						signature=[('H', np.float64),
+									('f', np.float64),
+									('speed', np.float64),
+									('t', np.float64),
+									('V0', np.float64),
+									('u', np.float64),
+									('p', np.float64)])
 		# Residual to be minimised by variation of parameters (amplitudes, phases)
 		def residual(hp, speed, V0, t, u, f):
-			breakpoint()
 			H = hp[np.newaxis, :n, np.newaxis]
 			p = hp[np.newaxis, n:, np.newaxis]
-
-			s = Tide._tidal_series(t, H, p, speed, u, f, V0)
+			
+			s = R1(t, H, p, speed, u, f, V0)
+			#s = Tide._tidal_series(t, H, p, speed, u, f, V0)
+			
 			#s = np.concatenate([
 			#	Tide._tidal_series(t_i, H, p, speed, u_i, f_i, V0)
 			#	for t_i, u_i, f_i in zip(t, u, f)
@@ -440,25 +475,33 @@ class Tide(object):
 		# faster than just using gradient approximation, especially with many
 		# measurements / constituents.
 		def D_residual(hp, speed, V0, t, u, f):
-			breakpoint()
 			H = hp[np.newaxis, :n, np.newaxis]
 			p = hp[np.newaxis, n:, np.newaxis]
 
-			inner = speed * t + (V0 + u) - p
-			ds_dH = f * np.cos(inner)
+
+			#inner = speed * t + (V0 + u) - p
+			#ds_dH = f * np.cos(inner)
+			ds_dH = DR1(f, speed, t, V0, u, p)
+			ds_dH = np.swapaxes(ds_dH, 0, 1).reshape(n, -1)
+
+
+			mask = np.count_nonzero(np.isfinite(ds_dH[0]))
 			#ds_dH = np.concatenate([
 			#	f_i*np.cos(inner)
 			#	for t_i, u_i, f_i in zip(t, u, f)],
 			#	axis = 1)
 
-			ds_dp = H * f * np.sin(inner)
-			ds_dp
+			#ds_dp = H * f * np.sin(inner)
+			ds_dp = DR2(H, f, speed, t, V0, u, p)
+			ds_dp = np.swapaxes(ds_dp, 0, 1).reshape(n, -1)
+			
 			#ds_dp = np.concatenate([
 			#	H*f_i*np.sin(speed*t_i+u_i+V0-p)
 			#	for t_i, u_i, f_i in zip(t, u, f)],
 			#	axis = 1)
 
-			return np.append(-ds_dH, -ds_dp, axis=0)
+			return np.append(-ds_dH[:, :mask], -ds_dp[:, :mask], axis=0)
+			#return np.append(-ds_dH, -ds_dp, axis=0)
 
 		# Initial guess for solver, haven't done any analysis on this since the
 		# solver seems to converge well regardless of the initial guess We do
@@ -482,7 +525,7 @@ class Tide(object):
 						#phases[i] = np.radians(phase)
 
 		#initial = np.append(amplitudes, phases)
-
+		initial_pt = initial_pt.squeeze()
 		lsq = leastsq(residual,
 						initial_pt,
 						Dfun=D_residual,
