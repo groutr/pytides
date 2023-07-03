@@ -267,7 +267,7 @@ class Tide(object):
 		if not isinstance(t, Iterable):
 			return Tide._hours(t0, [t])[0]
 		elif isinstance(t[0], datetime):
-			return np.array([(ti-t0).total_seconds() / 3600.0 for ti in t])
+			return np.array([(ti-t0).total_seconds() for ti in t]) / 3600.0
 		else:
 			return t
 
