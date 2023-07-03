@@ -272,23 +272,20 @@ class Tide(object):
 			return t
 
 	@staticmethod
-	def _partition(hours, partition = 3600.0):
+	def _partition2(hours, partition=3600):
 		"""
 		Partition a sorted list of numbers (or in this case hours).
 		Arguments:
 		hours -- sorted ndarray of hours.
-		partition -- maximum partition length (default: 3600.0)
+		partition -- maximum partition length (default: 3600)
 		"""
-		partition = float(partition)
-		relative = hours - hours[0]
-		total_partitions = np.ceil(
-						relative[-1] / partition +
-						10*np.finfo(np.float).eps
-						).astype('int')
-		return [hours
-				[np.floor(np.divide(relative, partition)) == i]
-				for i in range(total_partitions)
-				]
+		partition = int(partition)
+		parts = []
+		k = 0
+		while k < len(hours):
+			parts.append(hours[k:k+partition])
+			k += partition
+		return parts
 
 	@staticmethod
 	def _times(t0, hours):
