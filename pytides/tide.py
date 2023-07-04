@@ -279,7 +279,7 @@ class Tide(object):
 		hours -- sorted ndarray of hours.
 		partition -- maximum partition length (default: 3600)
 		"""
-		bins = np.digitize(hours, np.arange(hours.min(), hours.max(), partition))
+		bins = np.digitize(hours, np.arange(hours[0], hours[-1], partition))
 		return [hours[bins == i+1] for i in range(bins.max())]
 
 	@staticmethod
