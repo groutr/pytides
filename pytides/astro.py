@@ -1,5 +1,6 @@
 from collections import namedtuple
 import numpy as np
+import math
 
 
 #  Most of this is based around Meeus's Astronomical Algorithms, since it
@@ -43,9 +44,9 @@ def JD(t):
 	if M <= 2:
 		Y = Y - 1
 		M = M + 12
-	A = np.floor(Y / 100.0)
-	B = 2 - A + np.floor(A / 4.0)
-	return np.floor(365.25*(Y+4716)) + np.floor(30.6001*(M+1)) + D + B - 1524.5
+	A = math.floor(Y / 100.0)
+	B = 2 - A + math.floor(A / 4.0)
+	return math.floor(365.25*(Y+4716)) + math.floor(30.6001*(M+1)) + D + B - 1524.5
 
 # Meeus formula 21.3
 terrestrial_obliquity_coefficients = (
@@ -118,39 +119,42 @@ lunar_perigee_coefficients = (
 # Now follow some useful auxiliary values, we won't need their speed.
 # See notes on Table 6 in Schureman for I, nu, xi, nu', 2nu''
 def _I(N, i, omega):
-	N, i, omega = np.radians(N), np.radians(i), np.radians(omega)
-	cosI = np.cos(i)*np.cos(omega)-np.sin(i)*np.sin(omega)*np.cos(N)
-	return np.degrees(np.arccos(cosI))
+	N, i, omega = math.radians(N), math.radians(i), math.radians(omega)
+	cosI = math.cos(i)*math.cos(omega)-math.sin(i)*math.sin(omega)*math.cos(N)
+	return math.degrees(math.acos(cosI))
 
 def _xi(N, i, omega):
-	N, i, omega = np.radians(N), np.radians(i), np.radians(omega)
-	e1 = np.cos(0.5*(omega-i))/np.cos(0.5*(omega+i)) * np.tan(0.5*N)
-	e2 = np.sin(0.5*(omega-i))/np.sin(0.5*(omega+i)) * np.tan(0.5*N)
-	e1, e2 = np.arctan(e1), np.arctan(e2)
-	e1, e2 = e1 - 0.5*N, e2 - 0.5*N
-	return np.degrees(-(e1 + e2))
+	N5 = math.radians(N) * 0.5
+	i, omega = math.radians(i), math.radians(omega)
+	e1 = math.cos(0.5*(omega-i))/math.cos(0.5*(omega+i)) * math.tan(N5)
+	e2 = math.sin(0.5*(omega-i))/math.sin(0.5*(omega+i)) * math.tan(N5)
+	e1, e2 = math.atan(e1), math.atan(e2)
+	e1, e2 = e1 - N5, e2 - N5
+	return math.degrees(-(e1 + e2))
 
 def _nu(N, i, omega):
-	N, i, omega = np.radians(N), np.radians(i), np.radians(omega)
-	e1 = np.cos(0.5*(omega-i))/np.cos(0.5*(omega+i)) * np.tan(0.5*N)
-	e2 = np.sin(0.5*(omega-i))/np.sin(0.5*(omega+i)) * np.tan(0.5*N)
-	e1, e2 = np.arctan(e1), np.arctan(e2)
-	e1, e2 = e1 - 0.5*N, e2 - 0.5*N
-	return np.degrees((e1 - e2))
+	N5 = math.radians(N) * 0.5
+	i, omega = math.radians(i), math.radians(omega)
+	e1 = math.cos(0.5*(omega-i))/math.cos(0.5*(omega+i)) * math.tan(N5)
+	e2 = math.sin(0.5*(omega-i))/math.sin(0.5*(omega+i)) * math.tan(N5)
+	e1, e2 = math.atan(e1), math.atan(e2)
+	e1, e2 = e1 - N5, e2 - N5
+	return math.degrees((e1 - e2))
 
 # Schureman equation 224
 # Can we be more precise than B "the solar coefficient" = 0.1681?
 def _nup(N, i, omega):
-	I = np.radians(_I(N, i, omega))
-	nu = np.radians(_nu(N, i, omega))
-	return np.degrees(np.arctan(np.sin(2*I)*np.sin(nu)/(np.sin(2*I)*np.cos(nu)+0.3347)))
+	I = math.radians(_I(N, i, omega))
+	nu = math.radians(_nu(N, i, omega))
+	sin2i = math.sin(2*I)
+	return math.degrees(math.atan(sin2i*math.sin(nu)/(sin2i*math.cos(nu)+0.3347)))
 
 # Schureman equation 232
 def _nupp(N, i, omega):
-	I = np.radians(_I(N, i, omega))
-	nu = np.radians(_nu(N, i, omega))
-	tan2nupp = (np.sin(I)**2*np.sin(2*nu))/(np.sin(I)**2*np.cos(2*nu)+0.0727)
-	return np.degrees(0.5 * np.arctan(tan2nupp))
+	I = math.radians(_I(N, i, omega))
+	nu = math.radians(_nu(N, i, omega))
+	tan2nupp = (math.sin(I)**2*math.sin(2*nu))/(math.sin(I)**2*math.cos(2*nu)+0.0727)
+	return math.degrees(0.5 * math.atan(tan2nupp))
 
 AstronomicalParameter = namedtuple('AstronomicalParameter', ['value', 'speed'])
 
@@ -173,7 +177,7 @@ def astro(t):
 	dT_dHour = 1 / (24 * 365.25 * 100)
 	for name, coefficients in polynomials.items():
 		a[name] = AstronomicalParameter(
-				np.mod(polynomial(coefficients, T(t)), 360.0),
+				polynomial(coefficients, T(t)) % 360.0,
 				d_polynomial(coefficients, T(t)) * dT_dHour
 		)
 
@@ -188,12 +192,12 @@ def astro(t):
 		'nup':  _nup,
 		'nupp': _nupp
 	}.items():
-		a[name] = AstronomicalParameter(np.mod(function(*args), 360.0), None)
+		a[name] = AstronomicalParameter(function(*args) % 360.0, None)
 
 	# We don't work directly with the T (hours) parameter, instead our spanning
 	# set for equilibrium arguments # is given by T+h-s, s, h, p, N, pp, 90.
 	# This is in line with convention.
-	hour = AstronomicalParameter((JD(t) - np.floor(JD(t))) * 360.0, 15.0)
+	hour = AstronomicalParameter((JD(t) - math.floor(JD(t))) * 360.0, 15.0)
 	a['T+h-s'] = AstronomicalParameter(
 		hour.value + a['h'].value - a['s'].value,
 		hour.speed + a['h'].speed - a['s'].speed
@@ -202,7 +206,7 @@ def astro(t):
 	# factors need it, although it could be argued that these
 	# (along with I, xi, nu etc) belong somewhere else.
 	a['P'] = AstronomicalParameter(
-		np.mod(a['p'].value -a['xi'].value,360.0),
+		(a['p'].value -a['xi'].value) % 360.0,
 		None
 	)
 	return a
