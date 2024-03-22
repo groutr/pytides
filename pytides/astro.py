@@ -186,14 +186,9 @@ def astro(t):
 	# Some other parameters defined by Schureman which are dependent on the
 	# parameters N, i, omega for use in node factor calculations. We don't need
 	# their speeds.
-	args = tuple(each.value for each in [a['N'], a['i'], a['omega']])
-	for name, function in {
-		'I':    _I,
-		'xi':   _xi,
-		'nu':   _nu,
-		'nup':  _nup,
-		'nupp': _nupp
-	}.items():
+	args = tuple(each.value for each in (a['N'], a['i'], a['omega']))
+	for function in (_I, _xi, _nu, _nup, _nupp):
+		name = function.__name__.strip('_')
 		a[name] = AstronomicalParameter(function(*args) % 360.0, None)
 
 	# We don't work directly with the T (hours) parameter, instead our spanning
