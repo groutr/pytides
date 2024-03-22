@@ -158,20 +158,21 @@ def _nupp(N, i, omega):
 
 AstronomicalParameter = namedtuple('AstronomicalParameter', ['value', 'speed'])
 
+# We can use polynomial fits from Meeus to obtain good approximations to
+# some astronomical values (and therefore speeds).
+POLYNOMIALS = {
+		's':     lunar_longitude_coefficients,
+		'h':     solar_longitude_coefficients,
+		'p':     lunar_perigee_coefficients,
+		'N':     lunar_node_coefficients,
+		'pp':    solar_perigee_coefficients,
+		'90':    (90.0,),
+		'omega': terrestrial_obliquity_coefficients,
+		'i':     lunar_inclination_coefficients
+}
+
 def astro(t):
 	a = {}
-	# We can use polynomial fits from Meeus to obtain good approximations to
-	# some astronomical values (and therefore speeds).
-	polynomials = {
-			's':     lunar_longitude_coefficients,
-			'h':     solar_longitude_coefficients,
-			'p':     lunar_perigee_coefficients,
-			'N':     lunar_node_coefficients,
-			'pp':    solar_perigee_coefficients,
-			'90':    (90.0,),
-			'omega': terrestrial_obliquity_coefficients,
-			'i':     lunar_inclination_coefficients
-	}
 	# Polynomials are in T, that is Julian Centuries; we want our speeds to be
 	# in the more convenient unit of degrees per hour.
 	dT_dHour = 1 / (24 * 365.25 * 100)
