@@ -200,10 +200,9 @@ class Tide(object):
 		partition -- number of hours for which we consider the node
 		factors to be constant (default: 2400.0)
 		"""
-		if t1:
+		if t1 is not None:
 			# yield from in python 3.4
-			for e in takewhile(lambda t: t[0] < t1, self.extrema(t0)):
-				yield e
+			yield from takewhile(lambda t: t[0] < t1, self.extrema(t0))
 		else:
 			# We assume that extrema are separated by at least delta hours
 			delta = np.amin([
