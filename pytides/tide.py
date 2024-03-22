@@ -205,10 +205,12 @@ class Tide(object):
 			yield from takewhile(lambda t: t[0] < t1, self.extrema(t0))
 		else:
 			# We assume that extrema are separated by at least delta hours
-			delta = np.amin([
-				90.0 / c.speed(astro(t0)) for c in self.model['constituent']
-				if not c.speed(astro(t0)) == 0
-			])
+			vals = []
+			for c in self.model['constituent']:
+				v = c.speed(astro(t0))
+				if v != 0:
+					vals.append(90/v)
+			delta = min(vals)
 			# We search for stationary points from offset hours before t0 to
 			# ensure we find any which might occur very soon after t0.
 			offset = 24.0
