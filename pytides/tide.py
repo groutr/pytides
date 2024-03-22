@@ -9,6 +9,7 @@ except ImportError: # Python3
 	ifilter = filter
 from datetime import datetime, timedelta
 import numpy as np
+import math
 from scipy.optimize import leastsq, fsolve
 from scipy.linalg import norm
 from .astro import astro
@@ -220,7 +221,7 @@ class Tide(object):
 
 			# We'll overestimate to be on the safe side;
 			# values outside (start,end) won't get yielded.
-			interval_count = int(np.ceil((partition + offset) / delta)) + 1
+			interval_count = int(math.ceil((partition + offset) / delta)) + 1
 			amplitude = self.model['amplitude'][:, np.newaxis]
 			phase     = np.radians(self.model['phase'][:, np.newaxis])
 
