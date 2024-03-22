@@ -245,7 +245,7 @@ class Tide(object):
 				# We'll overestimate to be on the safe side;
 				# values outside (start,end) won't get yielded.
 				intervals = (
-					delta * i -offset for i in range(interval_count)
+					delta * i - offset for i in range(interval_count)
 					),(
 					delta*(i+1) - offset for i in range(interval_count)
 					)
