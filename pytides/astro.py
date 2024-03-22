@@ -175,11 +175,12 @@ def astro(t):
 	a = {}
 	# Polynomials are in T, that is Julian Centuries; we want our speeds to be
 	# in the more convenient unit of degrees per hour.
+	Tt = T(t)
 	dT_dHour = 1 / (24 * 365.25 * 100)
-	for name, coefficients in polynomials.items():
+	for name, coefficients in POLYNOMIALS.items():
 		a[name] = AstronomicalParameter(
-				polynomial(coefficients, T(t)) % 360.0,
-				d_polynomial(coefficients, T(t)) * dT_dHour
+				polynomial(coefficients, Tt) % 360.0,
+				d_polynomial(coefficients, Tt) * dT_dHour
 		)
 
 	# Some other parameters defined by Schureman which are dependent on the
@@ -198,7 +199,8 @@ def astro(t):
 	# We don't work directly with the T (hours) parameter, instead our spanning
 	# set for equilibrium arguments # is given by T+h-s, s, h, p, N, pp, 90.
 	# This is in line with convention.
-	hour = AstronomicalParameter((JD(t) - math.floor(JD(t))) * 360.0, 15.0)
+	JDt = JD(t)
+	hour = AstronomicalParameter((JDt - math.floor(JDt)) * 360.0, 15.0)
 	a['T+h-s'] = AstronomicalParameter(
 		hour.value + a['h'].value - a['s'].value,
 		hour.speed + a['h'].speed - a['s'].speed
