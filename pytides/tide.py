@@ -129,7 +129,7 @@ class Tide(object):
 		"""
 		t0 = t[0]
 		hours = self._hours(t0, t)
-		partition = 240.0
+		partition = 240
 		t = self._partition(hours, partition)
 		times = self._times(t0, [(i + 0.5)*partition for i in range(len(t))])
 		speed, u, f, V0 = self.prepare(t0, times, radians = True)
