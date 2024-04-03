@@ -282,6 +282,8 @@ class Tide(object):
 		partition -- maximum partition length (default: 3600)
 		"""
 		hours_len = hours[-1] - hours[0]
+		if hours_len == 0:
+			return 1
 		return math.ceil(hours_len / partition)
 
 	@staticmethod
