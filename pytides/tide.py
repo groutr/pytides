@@ -130,8 +130,8 @@ class Tide(object):
 		t0 = t[0]
 		hours = self._hours(t0, t)
 		partition = 240.0
-		t = self._partition(hours, partition)
-		times = self._times(t0, [(i + 0.5)*partition for i in range(len(t))])
+		t = self._npartition(hours, partition)
+		times = self._times(t0, (np.arange(t) + 0.5) * partition)
 		speed, u, f, V0 = self.prepare(t0, times, radians = True)
 		H = self.model['amplitude'][:, np.newaxis]
 		p = np.radians(self.model['phase'][:, np.newaxis])
@@ -272,17 +272,17 @@ class Tide(object):
 			return np.array([(ti-t0).total_seconds() for ti in t]) / 3600.0
 		else:
 			return t
-
+	
 	@staticmethod
-	def _partition(hours, partition=3600):
+	def _npartitions(hours, partition=3600):
 		"""
-		Partition a sorted list of numbers (or in this case hours).
+		Compute the number of partitions of a list of numbers (or in this case hours).
 		Arguments:
 		hours -- sorted ndarray of hours.
 		partition -- maximum partition length (default: 3600)
 		"""
-		splits = [partition * i for i in range(1, math.ceil(len(hours)/partition))]
-		return np.array_split(hours, splits)
+		hours_len = hours[-1] - hours[0]
+		return math.ceil(hours_len / partition)
 
 	@staticmethod
 	def _times(t0, hours):
@@ -394,8 +394,8 @@ class Tide(object):
 
 		partition = 240.0
 
-		t     = Tide._partition(hours, partition)
-		times = Tide._times(t0, [(i + 0.5)*partition for i in range(len(t))])
+		t = Tide._npartition(hours, partition)
+		times = Tide._times(t0, (np.arange(t) + 0.5) * partition)
 
 		speed, u, f, V0 = Tide._prepare(_constituents, t0, times, radians = True)
 
