@@ -129,7 +129,7 @@ class Tide(object):
 		"""
 		t0 = t[0]
 		hours = self._hours(t0, t)
-		partition = 240.0
+		partition = 240
 		t = self._npartition(hours, partition)
 		times = self._times(t0, (np.arange(t) + 0.5) * partition)
 		speed, u, f, V0 = self.prepare(t0, times, radians = True)
@@ -190,7 +190,7 @@ class Tide(object):
 		else:
 			return 'diurnal'
 
-	def extrema(self, t0, t1 = None, partition = 2400.0):
+	def extrema(self, t0, t1=None, partition=2400):
 		"""
 		A generator for high and low tides.
 		Arguments:
@@ -392,7 +392,7 @@ class Tide(object):
 		# consider these constant and equal to their speed at t0, regardless of
 		# the length of the time series.
 
-		partition = 240.0
+		partition = 240
 
 		t = Tide._npartition(hours, partition)
 		times = Tide._times(t0, (np.arange(t) + 0.5) * partition)
