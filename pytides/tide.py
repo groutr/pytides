@@ -129,9 +129,9 @@ class Tide(object):
 		"""
 		t0 = t[0]
 		hours = self._hours(t0, t)
-		partition = 240.0
+		partition = 240
 		t = self._partition(hours, partition)
-		times = self._times(t0, [(i + 0.5)*partition for i in range(len(t))])
+		times = self._times(t0, (np.arange(len(t)) + 0.5) * partition)
 		speed, u, f, V0 = self.prepare(t0, times, radians = True)
 		H = self.model['amplitude'][:, np.newaxis]
 		p = np.radians(self.model['phase'][:, np.newaxis])
@@ -281,8 +281,8 @@ class Tide(object):
 		hours -- sorted ndarray of hours.
 		partition -- maximum partition length (default: 3600)
 		"""
-		splits = [partition * i for i in range(1, math.ceil(len(hours)/partition))]
-		return np.array_split(hours, splits)
+		bins = np.digitize(hours, np.arange(hours[0], hours[-1], partition))
+		return [hours[bins == i] for i in np.unique(bins)]
 
 	@staticmethod
 	def _times(t0, hours):
@@ -302,7 +302,7 @@ class Tide(object):
 
 	@staticmethod
 	def _tidal_series(t, amplitude, phase, speed, u, f, V0):
-		return np.sum(amplitude*f*np.cos(speed*t + (V0 + u) - phase), axis=0)
+		return np.sum(amplitude*f*np.cos(speed*t + (V0 + u - phase)), axis=0)
 
 	def normalize(self):
 		"""
@@ -394,8 +394,8 @@ class Tide(object):
 
 		partition = 240.0
 
-		t     = Tide._partition(hours, partition)
-		times = Tide._times(t0, [(i + 0.5)*partition for i in range(len(t))])
+		t = Tide._partition(hours, partition)
+		times = Tide._times(t0, (np.arange(len(t)) + 0.5) * partition)
 
 		speed, u, f, V0 = Tide._prepare(_constituents, t0, times, radians = True)
 
